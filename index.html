@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Geração de Rotina CSW</title>
+  <link rel="stylesheet" href="css/styles.css?v=2" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>Geração de Rotina</strong>
+      <span>Consulta CSW a partir da especificação</span>
+    </div>
+    <div class="top-actions">
+      <button type="button" id="btnExample" class="btn ghost">Exemplo PRLPPV600</button>
+      <button type="button" id="btnGenerate" class="btn primary">Gerar .txt</button>
+      <button type="button" id="btnCopy" class="btn ghost">Copiar</button>
+      <button type="button" id="btnDownload" class="btn ghost">Baixar .txt</button>
+    </div>
+    <div id="toast" class="toast hidden" role="status">Copiado!</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel left">
+      <section>
+        <h2>Configuração</h2>
+        <div class="form-row">
+          <label for="cfgNome">Nome da rotina</label>
+          <input id="cfgNome" type="text" value="PRLPPV600" spellcheck="false" />
+        </div>
+        <div class="form-row">
+          <label for="cfgTitulo">Título (AJ)</label>
+          <input id="cfgTitulo" type="text" value="Consulta de Pedidos" />
+        </div>
+        <div class="form-row inline">
+          <div>
+            <label for="cfgMesAno">Mês/Ano</label>
+            <input id="cfgMesAno" type="text" value="03/2024" />
+          </div>
+          <div>
+            <label for="cfgAjCols">AJ colunas</label>
+            <input id="cfgAjCols" type="number" min="40" max="108" value="78" />
+          </div>
+          <div>
+            <label for="cfgAjRows">AJ linhas</label>
+            <input id="cfgAjRows" type="number" min="10" max="28" value="22" />
+          </div>
+        </div>
+        <p class="hint">O gerador monta interface + grid + Validate. A regra (RG) fica como chamada stub.</p>
+      </section>
+
+      <section class="grow">
+        <h2>Especificação</h2>
+        <textarea id="specIn" spellcheck="false" placeholder="Cole aqui: tipo, filtros, colunas e botões..."></textarea>
+      </section>
+    </aside>
+
+    <section class="panel right">
+      <div class="out-head">
+        <h2>Saída</h2>
+        <span id="outMeta" class="meta"></span>
+      </div>
+      <textarea id="outMac" readonly spellcheck="false" placeholder="Clique em Gerar .txt..."></textarea>
+    </section>
+  </main>
+
+  <script src="js/parser.js?v=2"></script>
+  <script src="js/generator.js?v=2"></script>
+  <script src="js/app.js?v=2"></script>
+</body>
+</html>
