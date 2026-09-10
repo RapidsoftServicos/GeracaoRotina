@@ -30,8 +30,8 @@
       nome: (el.nome.value || "ROTINA").trim().toUpperCase().replace(/\W/g, "") || "ROTINA",
       titulo: (el.titulo.value || "Consulta").trim(),
       mesAno: (el.mesAno.value || "01/2026").trim(),
-      ajCols: Math.min(108, Math.max(40, Number(el.ajCols.value) || 78)),
-      ajRows: Math.min(28, Math.max(10, Number(el.ajRows.value) || 22)),
+      ajCols: Math.min(108, Math.max(40, Number(el.ajCols.value) || 108)),
+      ajRows: Math.min(28, Math.max(10, Number(el.ajRows.value) || 28)),
     };
   }
 
@@ -88,8 +88,8 @@
     el.nome.value = "PRLPPV600";
     el.titulo.value = "Consulta de Pedidos";
     el.mesAno.value = "03/2024";
-    el.ajCols.value = "78";
-    el.ajRows.value = "22";
+    el.ajCols.value = "108";
+    el.ajRows.value = "28";
     generate();
     showToast("Exemplo carregado");
   });
