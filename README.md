@@ -2,7 +2,9 @@
 
 Site estático para gerar rotina de **consulta** Consistem a partir de uma especificação em texto.
 
-Publicação sugerida: **GitHub Pages** (`main` / root).
+**Site:** https://rapidsoftservicos.github.io/GeracaoRotina/
+
+Publicação: **GitHub Pages** (`main` / root).
 
 ## Uso
 
