@@ -291,11 +291,9 @@ window.GeracaoRotina = window.GeracaoRotina || {};
 
   function gen8000() {
     return lines(
-      `\t; Obter dados da linha`,
+      `\t; Mostra Dados`,
       `\t;`,
-      `8000\tset sc=$$ObterDadosLinha^%CSW1GRID(CT,%PRG,1,,.DADDET)`,
-      `\t;`,
-      `\tquit`,
+      `8000\tquit`,
       `\t;`
     );
   }
