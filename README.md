@@ -8,7 +8,7 @@ Publicação: **GitHub Pages** (`main` / root).
 
 ## Uso
 
-1. Informe nome da rotina, título e (opcional) sigla do autor.
+1. Informe código da rotina, título e (opcional) sigla do autor.
 2. Escreva a especificação (Filtros / Colunas / Botões) — botão **Formato** mostra a sintaxe.
 3. Clique em **Gerar** (ou Ctrl+Enter) → abas **Tela** e **Regras (RG)** → copiar ou **Baixar .mac** (dois arquivos, CRLF).
 

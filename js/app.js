@@ -53,7 +53,7 @@
   function generate() {
     const cfg = readCfg();
     if (!cfg.nome) {
-      showToast("Informe o nome da rotina");
+      showToast("Informe o código da rotina");
       el.nome.focus();
       return;
     }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Geração de Rotina CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=5" />
+  <link rel="stylesheet" href="css/styles.css?v=6" />
 </head>
 <body>
   <header class="topbar">
@@ -24,29 +24,23 @@
   <main class="layout">
     <aside class="panel left">
       <section>
-        <h2>Configuração</h2>
-        <div class="form-row inline">
+        <div class="sec-head">
+          <h2>Configuração</h2>
+          <div class="aj" title="Dimensões da tela (AJ): colunas × linhas">
+            <span>AJ</span>
+            <input id="cfgAjCols" type="number" min="40" max="108" value="108" aria-label="AJ colunas" />
+            <span>×</span>
+            <input id="cfgAjRows" type="number" min="10" max="28" value="28" aria-label="AJ linhas" />
+          </div>
+        </div>
+        <div class="form-row inline three">
           <div>
-            <label for="cfgNome">Nome da rotina</label>
+            <label for="cfgNome">Código da rotina</label>
             <input id="cfgNome" type="text" value="" placeholder="CCXX600" spellcheck="false" />
           </div>
           <div>
             <label for="cfgAutor">Sigla do autor</label>
             <input id="cfgAutor" type="text" value="" placeholder="RDC" maxlength="5" spellcheck="false" />
-          </div>
-        </div>
-        <div class="form-row">
-          <label for="cfgTitulo">Título da tela</label>
-          <input id="cfgTitulo" type="text" value="" placeholder="Consulta de ..." />
-        </div>
-        <div class="form-row inline three">
-          <div>
-            <label for="cfgAjCols">AJ colunas</label>
-            <input id="cfgAjCols" type="number" min="40" max="108" value="108" />
-          </div>
-          <div>
-            <label for="cfgAjRows">AJ linhas</label>
-            <input id="cfgAjRows" type="number" min="10" max="28" value="28" />
           </div>
           <div>
             <label for="cfgTrava">Trava de execução</label>
@@ -55,6 +49,10 @@
               <option value="CCUTIRG001">CCUTIRG001</option>
             </select>
           </div>
+        </div>
+        <div class="form-row last">
+          <label for="cfgTitulo">Título da tela</label>
+          <input id="cfgTitulo" type="text" value="" placeholder="Consulta de ..." />
         </div>
       </section>
 
@@ -97,8 +95,8 @@ Imprimir                          demais → csw:botao + label 3XXX</pre>
     </section>
   </main>
 
-  <script src="js/parser.js?v=5"></script>
-  <script src="js/generator.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/parser.js?v=6"></script>
+  <script src="js/generator.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

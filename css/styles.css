@@ -209,7 +209,30 @@ textarea {
 
 select { padding: 0.4rem 0.45rem; }
 
-.form-row.inline.three { grid-template-columns: 1fr 1fr 1.4fr; }
+.form-row.inline.three { grid-template-columns: 1.3fr 0.8fr 1.3fr; }
+.form-row.last { margin-bottom: 0; }
+
+.sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+}
+.sec-head h2 { margin: 0; }
+
+.aj {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.aj input {
+  width: 3.6rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.78rem;
+  text-align: center;
+}
 
 .panel section .out-head { margin-bottom: 0.65rem; }
 
