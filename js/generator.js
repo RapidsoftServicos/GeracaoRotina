@@ -152,7 +152,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
   }
 
   function argsGlobalTrabalho(items) {
-    const parts = ["CT", "CE"];
+    const parts = ["CE", "CT"];
     for (const f of items) {
       if (f.kind === "periodo") parts.push(f.varDe, f.varAte);
       else if (f.kind === "multiselect") parts.push(`.${f.selVar}`);
@@ -162,7 +162,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
   }
 
   function paramsGlobalTrabalho(items) {
-    const parts = ["term", "codEmpresa"];
+    const parts = ["codEmpresa", "term"];
     for (const f of items) {
       if (f.kind === "periodo") parts.push(f.paramDe, f.paramAte);
       else parts.push(f.param);
@@ -321,7 +321,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       "\tquit:$$CSP^%CSW1UTI()",
       "\t;",
       `2000AG1\tset sc=$$GerarGlobalTrabalho^${rg}(${argsGlobalTrabalho(lay.items)})`,
-      `\tif $$$ISOK(sc) set sc=$$GerarGrid^${rg}(CT,%PRG,CE)`,
+      `\tif $$$ISOK(sc) set sc=$$GerarGrid^${rg}(CE,CT,%PRG)`,
       "\t;",
       "\tdo FJ^%CSUTIUD",
       "\tdo FJAG^%CSW1UTI",
@@ -407,12 +407,12 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       if (f.kind === "periodo") {
         abre(n, f.label);
         if (f.obrigatorio) L.push(`\tif ${f.varDe}="" ${msgObrig(f.label)}`);
-        L.push("\tquit 1");
+        L.push("\tquit $$$OK");
         abre(f.labelNumAte, f.labelFim);
         if (f.obrigatorio) L.push(`\tif ${f.varAte}="" ${msgObrig(f.labelFim)}`);
         L.push(
           `\tif ${f.varDe}'="",${f.varAte}'="",${f.varDe}>${f.varAte} do ME^%CSUTIUD("${f.labelFim} menor que a inicial!") quit 0`,
-          "\tquit 1"
+          "\tquit $$$OK"
         );
         continue;
       }
@@ -420,7 +420,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       switch (f.kind) {
         case "display":
           if (f.obrigatorio) L.push(`\tif ${f.varName}="" ${msgObrig(f.label)}`);
-          else L.push(`\tif ${f.varName}="" do Set^%CSW1UTI(%PRG,"${f.dsId}","Todos") quit 1`);
+          else L.push(`\tif ${f.varName}="" do Set^%CSW1UTI(%PRG,"${f.dsId}","Todos") quit $$$OK`);
           L.push(
             "\t;",
             `\tset sc=$$${f.regraDesc}^${rg}(CE,${f.varName},.${f.descVar})`,
@@ -440,31 +440,32 @@ window.GeracaoRotina = window.GeracaoRotina || {};
         default:
           if (f.obrigatorio) L.push(`\tif ${f.varName}="" ${msgObrig(f.label)}`);
       }
-      L.push("\tquit 1");
+      L.push("\tquit $$$OK");
     }
     return L;
   }
 
   function genValidate(items) {
-    const L = [...hdr("Validar filtros"), "Validate()\t;", "\tquit:'$$CSP^%CSW1UTI() 1"];
+    const L = [...hdr("Validar filtros"), "Validate()\t;"];
     for (const f of items) {
       for (const n of f.kind === "periodo" ? [f.labelNum, f.labelNumAte] : [f.labelNum]) {
         L.push(`\tif '$$Valcp${n}() do Focus^%CSW1UTI(%PRG,"cp${n}") quit 0`);
       }
     }
-    L.push("\tquit 1");
+    L.push("\t;", "\tquit $$$OK");
     return L;
   }
 
-  function genShowClick(cfg) {
+  function genClickShow(cfg) {
     return [
-      ...hdr("Ponto de entrada"),
-      "Show(%cswP1,%cswP2,%cswP3,%cswP4)\t;",
-      `\tdo Show^%CSW1UTI("${cfg.nome}",$get(%cswP1),$get(%cswP2),$get(%cswP3),$get(%cswP4))`,
-      "\tquit",
       ...hdr("Clique na célula do grid"),
       "TbCellClick(%cswLin,%cswCol)\t;",
       "\tgoto 2999",
+      ...hdr("Ponto de entrada"),
+      "Show(%cswP1,%cswP2,%cswP3,%cswP4)\t;",
+      `\tdo Show^%CSW1UTI("${cfg.nome}",$get(%cswP1),$get(%cswP2),$get(%cswP3),$get(%cswP4))`,
+      "\t;",
+      "\tquit",
     ];
   }
 
@@ -504,7 +505,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       ...gen9999(cfg),
       ...genValcps(cfg, lay.items),
       ...genValidate(lay.items),
-      ...genShowClick(cfg),
+      ...genClickShow(cfg),
       ...genTags(cfg, lay),
       "",
     ].join("\n");
@@ -523,18 +524,23 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     const L = ["\t;", `\t; ${desc}`];
     if (cfg.autor) L.push(`\t; (${cfg.autor} - ${hoje()})`);
     const [label, args] = chamada.split(/\((.*)\)$/s);
-    L.push(`\t; set sc=$$${label}^${rg}(${args || ""})`, `${assinatura}\t;`, "\t$$$VAR", ...corpo);
+    L.push("\t;", `\t; set sc=$$${label}^${rg}(${args || ""})`, `${assinatura}\t;`, "\t$$$VAR", ...corpo);
     return L;
   }
 
+  // Condição comentada de cada filtro dentro do laço do global de negócio
   function dicaFiltro(f) {
+    let valor = NS.util.camel(f.label);
+    if (valor === f.param) valor += "Registro";
     switch (f.kind) {
       case "periodo":
-        return [`\t;. if (data${NS.util.pascal(f.label)}<${f.paramDe})!(data${NS.util.pascal(f.label)}>${f.paramAte}) quit`];
+        return [`\t;. if (${valor}'>${f.paramDe})!(${valor}>${f.paramAte}) quit`];
       case "multiselect":
-        return [`\t;. if $data(${f.param})&&((valor="")||('$data(${f.param}(valor)))) quit  ; ${f.label}`];
+        return [`\t;. if $data(${f.param})&&('$data(${f.param}(${valor}))) quit`];
+      case "display":
+        return [`\t;. if (${f.param}'=""),(${valor}'=${f.param}) quit`];
       default:
-        return [`\t;. if (${f.param}'=""),(valor'=${f.param}) quit  ; ${f.label}`];
+        return [`\t;. if (${f.param}'=""),(${valor}'=${f.param}) quit`];
     }
   }
 
@@ -559,7 +565,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
           "\tset dataHoje=+$$$horolog",
           "\t;",
           "\t; Primeiro dia do mês atual",
-          `\tset (${ps.join(",")})=dataHoje-$piece($zdate(dataHoje,4),"/",1)+1`,
+          `\tset ${ps.length > 1 ? `(${ps.join(",")})` : ps[0]}=dataHoje-$piece($zdate(dataHoje,4),"/",1)+1`,
           "\t;",
           "\tquit $$$OK",
         ])
@@ -579,13 +585,8 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     for (const f of lay.items.filter((x) => x.kind === "display")) {
       L.push(
         ...regra(cfg, `Obter descrição de ${f.label.toLowerCase()}`, `${f.regraDesc}(codEmpresa,codigo,descricao)`, `${f.regraDesc}(codEmpresa,codigo,.descricao)`, [
-          "\tset descricao=\"\"",
-          "\tif (codigo=\"\") quit $$$OK",
           "\t;",
-          `\t; TODO: usar a regra Obter*/Ver* do módulo de ${f.label.toLowerCase()} (não ler o global direto)`,
-          `\t; set sc=$$Ver...^...(codEmpresa,codigo,.registro)`,
-          `\t; if $$$ISERR(sc) quit sc`,
-          `\t; set descricao=codigo_" - "_$piece(registro,z,1)`,
+          `\t; TODO: usar a regra Obter*/Ver* do módulo de ${f.label.toLowerCase()}`,
           "\t;",
           "\tquit $$$OK",
         ])
@@ -596,12 +597,24 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     const params = paramsGlobalTrabalho(lay.items);
     const chamadaGT = params.map((p) => (lay.items.some((f) => f.kind === "multiselect" && f.param === p) ? "." + p : p)).join(",");
     const dicas = lay.items.flatMap(dicaFiltro);
+    // Ajuste padrão dos períodos: início -1 (para o $order) e fim vazio = ontem
+    const ajustePeriodos = periodos.length
+      ? [
+          "\tset dataAtual=+$$$horolog",
+          ...periodos.flatMap((p) => [
+            `\tset ${p.paramDe}=$select($get(${p.paramDe})="":"",1:${p.paramDe}-1)`,
+            `\tset ${p.paramAte}=$select($get(${p.paramAte})="":dataAtual-1,1:${p.paramAte})`,
+          ]),
+          "\t;",
+        ]
+      : [];
     L.push(
       ...regra(cfg, "Gerar global de trabalho", `GerarGlobalTrabalho(${params.join(",")})`, `GerarGlobalTrabalho(${chamadaGT})`, [
-        "\tnew sc,chave,dados",
+        `\tnew sc,chave,dados${periodos.length ? ",dataAtual" : ""}`,
         "\t;",
         "\tset sc=$$ExcluirGlobalTrabalho(term)",
         "\t;",
+        ...ajustePeriodos,
         "\t; TODO: percorrer o global de negócio aplicando os filtros e gravar",
         `\t; uma linha por registro em ${mtemp}(term,chave), com os pieces na`,
         "\t; mesma ordem das colunas do grid (ver GravarLinha)",
@@ -618,45 +631,42 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     );
 
     L.push(
-      ...regra(cfg, "Gerar grid", "GerarGrid(term,rotina,codEmpresa)", "GerarGrid(term,rotina,codEmpresa)", [
+      ...regra(cfg, "Gerar grid", "GerarGrid(codEmpresa,term,rotina)", "GerarGrid(codEmpresa,term,rotina)", [
         "\tnew sc,chave",
         "\t;",
-        "\tset sc=$$$OK",
+        `\t; TODO: percorrer a ${mtemp} na mesma estrutura de chaves gravada no GerarGlobalTrabalho`,
         "\tset chave=\"\"",
-        `\tfor  set chave=$order(${mtemp}(term,chave)) quit:chave=""  do  quit:$$$ISERR(sc)`,
+        `\tfor  set chave=$order(${mtemp}(term,chave)) quit:chave=""  do`,
         "\t. ;",
-        "\t. set sc=$$GravarLinha(term,rotina,codEmpresa,chave)",
+        "\t. set sc=$$GravarLinha(codEmpresa,term,rotina,chave)",
         "\t;",
-        "\tquit sc",
+        "\tquit $$$OK",
       ])
     );
 
     const cols = model.columns;
+    const varMtemp = `mtemp${cfg.nome}`;
     L.push(
       ...regra(
         cfg,
         "Gravar linha do grid",
-        "GravarLinha(term,rotina,codEmpresa,chave,codRegistro)",
-        "GravarLinha(term,rotina,codEmpresa,chave)",
+        "GravarLinha(codEmpresa,term,rotina,chave,codRegistro)",
+        "GravarLinha(codEmpresa,term,rotina,chave)",
         [
-          ...newLines(["sc", "linha", "dados", "display", "detalha", ...cols.map((c) => c.param)]),
+          ...newLines(["sc", varMtemp, "dados", "display", "detalha", ...cols.map((c) => c.param)]),
           "\t;",
-          "\tset codRegistro=$get(codRegistro)",
           "\tset (dados,display,detalha)=\"\"",
           "\t;",
-          `\tset linha=$get(${mtemp}(term,chave))`,
-          ...cols.map((c, i) => `\tset ${c.param}=$piece(linha,z,${i + 1})`),
+          `\tset ${varMtemp}=$get(${mtemp}(term,chave))`,
+          ...cols.map((c, i) => `\tset ${c.param}=$piece(${varMtemp},z,${i + 1})`),
           "\t;",
           ...cols.map((c, i) => `\tset $piece(dados,z,${i + 1})=${c.param}`),
           "\t;",
-          "\t; display: texto exibido no lugar do valor (ex.: código - descrição)",
-          "\t;set $piece(display,z,N)=...",
-          "\t;",
           "\tset $piece(detalha,z,1)=chave",
           "\t;",
-          "\tset sc=$$GravarLinhas^%CSW1GRID(term,rotina,1,dados,display,detalha,codRegistro,,,,,,1)",
+          "\tset sc=$$GravarLinhas^%CSW1GRID(term,rotina,1,dados,display,detalha,$get(codRegistro),,,,,,1)",
           "\t;",
-          "\tquit sc",
+          "\tquit $$$OK",
         ]
       )
     );
