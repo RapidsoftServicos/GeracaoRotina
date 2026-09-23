@@ -1,573 +1,712 @@
-/* Gerador de .mac — rotina de consulta (padrão PRLPPV600) */
+/* Gerador — tela de consulta (.mac) + regras (RG.mac) no padrão Consistem
+ *
+ * Fontes do padrão (plugin csw): interface-consulta, esqueleto-tela-classica,
+ * grid-csw1grid, csle-leitor-campos, invariantes e convencoes-codigo.
+ */
 
 window.GeracaoRotina = window.GeracaoRotina || {};
 
 (function (NS) {
-  function lines(...arr) {
-    return arr.flat().filter((x) => x !== null && x !== undefined).join("\n");
+  // Label em COL=1 com LARGURA=L encaixa no campo em COL=1+L (mínimo 15, cresce com o maior rótulo)
+  function larguraLabel(model) {
+    const maior = Math.max(0, ...model.filters.map((f) => f.label.length + 1));
+    return Math.min(30, Math.max(15, maior));
   }
 
   function unique(list) {
-    const seen = new Set();
+    return [...new Set(list.filter(Boolean))];
+  }
+
+  function chunk(list, size) {
     const out = [];
-    for (const v of list) {
-      if (!v || seen.has(v)) continue;
-      seen.add(v);
-      out.push(v);
-    }
+    for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
     return out;
   }
 
-  function chunkVars(vars, size = 14) {
-    const chunks = [];
-    for (let i = 0; i < vars.length; i += size) chunks.push(vars.slice(i, i + size));
-    return chunks;
+  // Cabeçalho de label principal: ";" / "; Descrição" / ";"
+  function hdr(desc) {
+    return ["\t;", `\t; ${desc}`, "\t;"];
   }
 
-  function assignLayout(model) {
-    const items = [];
-    let lin = 1;
-    let labelNum = 1000;
+  function hoje() {
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  }
 
-    for (const f of model.filters) {
-      if (f.kind === "periodo") {
-        const de = labelNum;
-        labelNum += 100;
-        const ate = labelNum;
-        labelNum += 100;
-        items.push({
-          ...f,
-          labelNum: de,
-          labelNumAte: ate,
-          lin,
-          colCampoDe: 16,
-          colLabelAte: 31,
-          colCampoAte: 32,
-          tamCampo: 6,
-          labelTam: 15,
-        });
-        lin += 1;
-      } else if (f.kind === "multiselect") {
-        items.push({
-          ...f,
-          labelNum,
-          lin,
-          colCampo: 16,
-          tamCampo: 9,
-          labelTam: 15,
-        });
-        labelNum += 100;
-        lin += 1;
-      } else if (f.kind === "campoDisplay") {
-        items.push({
-          ...f,
-          labelNum,
-          lin,
-          colCampo: 16,
-          tamCampo: /CODREP/i.test(f.varName) ? 4 : 12,
-          labelTam: 15,
-          dsId: `ds${labelNum}`,
-          dsCol: /CODREP/i.test(f.varName) ? 24 : 40,
-          dsTam: /CODREP/i.test(f.varName) ? 30 : 35,
-        });
-        labelNum += 100;
-        lin += 1;
-      } else {
-        items.push({
-          ...f,
-          labelNum,
-          lin,
-          colCampo: 16,
-          tamCampo: f.kind === "data" ? 6 : 12,
-          labelTam: 15,
-        });
-        labelNum += 100;
-        lin += 1;
-      }
+  function tamCampo(f) {
+    switch (f.kind) {
+      case "data":
+      case "periodo":
+        return 8;
+      case "inteiro":
+      case "display":
+        return f.tam || 8;
+      case "multiselect":
+        return 9;
+      case "combo":
+        return Math.max(12, ...f.opcoes.map((o) => o.length + 4));
+      case "simnao":
+        return 10;
+      default:
+        return f.tam || 20;
     }
-
-    return { filterItems: items };
   }
 
-  function collectVars(filterItems) {
-    const base = ["%TR", "%PRG", "CT", "TABGRID", "SN", "DADDET", "sc", "COLUNA", "OP"];
-    const extras = [];
-    for (const f of filterItems) {
+  function passoLabels(qtd) {
+    if (qtd <= 10) return 100;
+    if (qtd <= 20) return 50;
+    return 25;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Layout: numeração de labels, linhas e colunas                       */
+  /* ------------------------------------------------------------------ */
+
+  function assignLayout(cfg, model) {
+    const blocos = model.filters.reduce((n, f) => n + (f.kind === "periodo" ? 2 : 1), 0);
+    const passo = passoLabels(blocos);
+    const colBtn = cfg.ajCols - 11;
+    const largLabel = larguraLabel(model);
+    const COL_CAMPO = 1 + largLabel;
+    let labelNum = 1000;
+    let lin = 1;
+    const next = () => {
+      const n = labelNum;
+      labelNum += passo;
+      return n;
+    };
+
+    const items = model.filters.map((f) => {
+      const it = { ...f, lin, col: COL_CAMPO, tam: tamCampo(f) };
+      it.labelNum = next();
       if (f.kind === "periodo") {
-        extras.push(f.varDe, f.varAte);
-        if (f.varDe === "DATINI") extras.push("DATEMI");
-      } else if (f.kind === "multiselect") {
-        extras.push(f.tabVar, f.selVar);
-      } else {
-        extras.push(f.varName);
+        it.labelNumAte = next();
+        it.colLabelAte = COL_CAMPO + it.tam + 4;
+        it.colAte = it.colLabelAte + 4;
       }
-      if (/CODCLI/i.test(f.varName || "")) extras.push("DESCCLI", "CFGCLI", "CLI");
-      if (/CODREP/i.test(f.varName || "")) extras.push("SELREP", "REP");
+      if (f.kind === "display") {
+        it.dsId = `ds${it.labelNum}`;
+        it.dsCol = COL_CAMPO + it.tam + 4;
+        it.dsTam = Math.max(10, Math.min(40, colBtn - 2 - it.dsCol));
+      }
+      it.lastLabel = it.labelNumAte || it.labelNum;
+      lin += 1;
+      return it;
+    });
+
+    const lastLin = items.length ? items[items.length - 1].lin : 1;
+    const temBotoes = model.buttons.extras.length > 0;
+    const linPos = lastLin + 2;
+    const linIni = linPos + 2;
+    const linFim = cfg.ajRows - (temBotoes ? 4 : 3);
+    const grid = {
+      linPos,
+      linIni,
+      linFim,
+      altura: linFim - linIni,
+      colFim: cfg.ajCols - 1,
+    };
+
+    // Botões extras: abaixo do grid (LinFim + 4), labels 3XXX
+    const usados = new Set(["c", "l"]);
+    const botoes = model.buttons.extras.map((titulo, i) => {
+      const limpo = titulo.trim();
+      const nome = "bt" + NS.util.pascal(limpo);
+      let idx = [...limpo].findIndex((ch) => /[A-Za-zÀ-ú]/.test(ch) && !usados.has(ch.toLowerCase()));
+      if (idx < 0) idx = 0;
+      const atalho = limpo[idx];
+      usados.add(atalho.toLowerCase());
+      const tituloTag = limpo.slice(0, idx) + `<u>${atalho}</u>` + limpo.slice(idx + 1);
+      return {
+        titulo: limpo,
+        nome,
+        atalho,
+        tituloTag,
+        label: 3000 + i * 100,
+        col: 1 + i * 13,
+        lin: linFim + 4,
+      };
+    });
+
+    return { items, grid, botoes, passo, colBtn, blocos, largLabel };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Variáveis                                                           */
+  /* ------------------------------------------------------------------ */
+
+  function varsTela(items) {
+    const base = ["%TR", "%PRG", "CT", "TABGRID", "SN", "sc"];
+    const extras = [];
+    for (const f of items) {
+      if (f.kind === "periodo") extras.push(f.varDe, f.varAte);
+      else if (f.kind === "multiselect") extras.push(f.tabVar, f.selVar);
+      else if (f.kind === "combo") extras.push(f.varName, f.tabVar);
+      else if (f.kind === "simnao") extras.push(f.varName, "TABSIM");
+      else if (f.kind === "display") extras.push(f.varName, f.descVar);
+      else extras.push(f.varName);
     }
     return unique([...base, ...extras]);
   }
 
-  function prevLabelNum(filterItems, idx) {
-    if (idx <= 0) return null;
-    const prev = filterItems[idx - 1];
-    return prev.kind === "periodo" ? prev.labelNumAte : prev.labelNum;
-  }
-
-  function gen0500(cfg, filterItems) {
-    const kills = [];
-    const setsEmpty = [];
-    let hasTabsit = false;
-    let hasDat = false;
-    let hasPrev = false;
-
-    for (const f of filterItems) {
-      if (f.kind === "multiselect") {
-        kills.push(f.selVar);
-        if (f.tabVar === "TABSIT" || /situa/i.test(f.label)) hasTabsit = true;
-      }
-      if (f.kind === "periodo") {
-        if (f.varDe === "DATINI") hasDat = true;
-        if (f.varDe === "PREVIN") hasPrev = true;
-      }
-      if (f.kind === "campoDisplay" || f.kind === "campo" || f.kind === "data") {
-        setsEmpty.push(f.varName);
-      }
-      if (/CODREP/i.test(f.varName || "")) kills.push("SELREP");
-    }
-
-    const L = [];
-    L.push(`\t; Iniciar as variaveis`);
-    L.push(`\t;`);
-    L.push(`0500\t${kills.length ? `kill ${unique(kills).join(",")}` : "kill TABGRID"}`);
-    L.push(`\t;`);
-    if (hasTabsit) L.push(`\tset sc=$$ObterTabSituacao^${cfg.nome}RG(.TABSIT)`);
-    if (hasDat && hasPrev) L.push(`\tset sc=$$InicializarVariaveis^${cfg.nome}RG(.DATINI,.PREVIN)`);
-    else if (hasDat) L.push(`\tset sc=$$InicializarVariaveis^${cfg.nome}RG(.DATINI)`);
-    else if (hasPrev) L.push(`\tset sc=$$InicializarVariaveis^${cfg.nome}RG(.PREVIN)`);
-    L.push(`\t;`);
-    const empties = unique([...setsEmpty, "OP"]);
-    L.push(`\tset (${empties.join(",")})=""`);
-    if (hasDat) L.push(`\tset DATFIM=+$$$horolog`);
-    if (hasPrev) L.push(`\tset PREVFN=+$$$horolog`);
-    L.push(`\t;`);
-    L.push(`\tdo 9000`);
-    L.push(`\t;`);
-    return L.join("\n");
-  }
-
-  function genFilters(cfg, filterItems) {
-    const L = [];
-    const nome = cfg.nome;
-
-    filterItems.forEach((f, idx) => {
-      const back = prevLabelNum(filterItems, idx);
-
-      if (f.kind === "campoDisplay") {
-        L.push(`\t; ${f.label}`);
-        L.push(`${f.labelNum}\t;`);
-        if (/CODREP/i.test(f.varName)) {
-          L.push(`${f.labelNum}ON\tdo ClearCp^%CSW1UTI("${f.dsId}")`);
-          L.push(`\tdo ^%CSLE(${f.lin},${f.colCampo},${f.tamCampo},"${f.varName}",,"@'?.N",,,",SELREP^CCTELGE299,1,cp${f.labelNum}")`);
-        } else {
-          L.push(`${f.labelNum}ON\tdo Set^%CSW1UTI(%PRG,"${f.dsId}","")`);
-          if (/CODCLI/i.test(f.varName)) {
-            L.push(`\tdo ^%CSLE(${f.lin},${f.colCampo},,"${f.varName}",${f.varName},"@'?.N",,,",,,cp${f.labelNum}",",1",,,,,,"CLIENTE^CCCDBRG001(CFGCLI)")`);
-          } else {
-            L.push(`\tdo ^%CSLE(${f.lin},${f.colCampo},${f.tamCampo},"${f.varName}",${f.varName},,,,",,,cp${f.labelNum}")`);
-          }
-        }
-        L.push(`\tquit:$$CSP^%CSW1UTI()`);
-        L.push(`\t;`);
-        if (back == null) L.push(`${f.labelNum}EX\tgoto 9999:%=27!(%=140)`);
-        else L.push(`${f.labelNum}EX\tgoto 9999:%=27,${back}:%=140`);
-        L.push(`\t;`);
-        L.push(`\tif '$$Valcp${f.labelNum}() goto ${f.labelNum}`);
-        L.push(`\t;`);
-      } else if (f.kind === "multiselect") {
-        L.push(`\t; ${f.label}`);
-        L.push(`\t;`);
-        L.push(`${f.labelNum}\t;`);
-        L.push(
-          `${f.labelNum}ON\tdo ^%CSUTIMM("${f.tabVar}","1",,,"1,0","${f.selVar}","${f.label}",,,,,,,"${f.labelNum}MM1^${nome}","${f.colCampo},${f.lin},${f.tamCampo},${f.labelNum}^${nome}")`
-        );
-        L.push(`\tquit:$$CSP^%CSW1UTI()`);
-        if (back == null) L.push(`${f.labelNum}MM1\tgoto 9999:%=27!(%=140)`);
-        else L.push(`${f.labelNum}MM1\tgoto ${back}:%=27!(%=140)`);
-        L.push(`\tif '$$Valcp${f.labelNum}() goto ${f.labelNum}`);
-        L.push(`\t;`);
-      } else if (f.kind === "periodo") {
-        L.push(`\t; ${f.labelDe}`);
-        L.push(`${f.labelNum}\t;`);
-        L.push(`${f.labelNum}ON\tdo ^%CSLE(${f.lin},${f.colCampoDe},${f.tamCampo},"${f.varDe}",${f.varDe},,"1,1,3",,",,1,cp${f.labelNum}")`);
-        L.push(`\tquit:$$CSP^%CSW1UTI()`);
-        if (back == null) L.push(`${f.labelNum}EX\tgoto 9999:%=27!(%=140)`);
-        else L.push(`${f.labelNum}EX\tgoto 9999:%=27,${back}:%=140`);
-        L.push(`\t;`);
-        L.push(`\tif '$$Valcp${f.labelNum}() goto ${f.labelNum}`);
-        L.push(`\t;`);
-        L.push(`\t; ${f.labelAte}`);
-        L.push(`${f.labelNumAte}\t;`);
-        L.push(`${f.labelNumAte}ON\tdo ^%CSLE(${f.lin},${f.colCampoAte},${f.tamCampo},"${f.varAte}",${f.varAte},,"1,1,3",,",,2,cp${f.labelNumAte}")`);
-        L.push(`\tquit:$$CSP^%CSW1UTI()`);
-        L.push(`${f.labelNumAte}EX\tgoto 9999:%=27,${f.labelNum}:%=140`);
-        L.push(`\t;`);
-        L.push(`\tif '$$Valcp${f.labelNumAte}() goto ${f.labelNumAte}`);
-        L.push(`\t;`);
-      } else {
-        L.push(`\t; ${f.label}`);
-        L.push(`${f.labelNum}\t;`);
-        if (f.kind === "data") {
-          L.push(`${f.labelNum}ON\tdo ^%CSLE(${f.lin},${f.colCampo},${f.tamCampo},"${f.varName}",${f.varName},,"1,1,3",,",,1,cp${f.labelNum}")`);
-        } else {
-          L.push(`${f.labelNum}ON\tdo ^%CSLE(${f.lin},${f.colCampo},${f.tamCampo},"${f.varName}",${f.varName},,,,",,,cp${f.labelNum}")`);
-        }
-        L.push(`\tquit:$$CSP^%CSW1UTI()`);
-        if (back == null) L.push(`${f.labelNum}EX\tgoto 9999:%=27!(%=140)`);
-        else L.push(`${f.labelNum}EX\tgoto 9999:%=27,${back}:%=140`);
-        L.push(`\t;`);
-        L.push(`\tif '$$Valcp${f.labelNum}() goto ${f.labelNum}`);
-        L.push(`\t;`);
-      }
-    });
-
-    return L.join("\n");
-  }
-
-  function buildRgArgs(filterItems) {
+  function argsGlobalTrabalho(items) {
     const parts = ["CT", "CE"];
-    for (const f of filterItems) {
-      if (f.kind === "periodo") {
-        if (f.varDe === "DATINI") parts.push("DATEMI", "DATFIM");
-        else parts.push(f.varDe, f.varAte);
-      } else if (f.kind === "multiselect") {
-        parts.push(`.${f.selVar}`);
-      } else if (f.kind === "campoDisplay" && /CODREP/i.test(f.varName)) {
-        parts.push(".SELREP");
-      } else {
-        parts.push(f.varName);
-      }
+    for (const f of items) {
+      if (f.kind === "periodo") parts.push(f.varDe, f.varAte);
+      else if (f.kind === "multiselect") parts.push(`.${f.selVar}`);
+      else parts.push(f.varName);
     }
-    return unique(parts).join(",");
+    return parts.join(",");
   }
 
-  function genConsultaGrid(cfg, filterItems) {
-    const nome = cfg.nome;
-    const rgArgs = buildRgArgs(filterItems);
-    return lines(
-      `\t; Consultar em CSW`,
-      `\t;`,
-      `1999\tdo Focus^%CSW1UTI(%PRG,"btConsultar",,1) quit`,
-      `\t;`,
-      `\t; GERAR GRID`,
-      `\t;`,
+  function paramsGlobalTrabalho(items) {
+    const parts = ["term", "codEmpresa"];
+    for (const f of items) {
+      if (f.kind === "periodo") parts.push(f.paramDe, f.paramAte);
+      else parts.push(f.param);
+    }
+    return parts;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* TELA — {NOME}.mac                                                   */
+  /* ------------------------------------------------------------------ */
+
+  function flag1(f, resto) {
+    const obr = f.obrigatorio ? "1" : "";
+    return resto ? `"${obr},${resto}"` : f.obrigatorio ? "1" : "";
+  }
+
+  function raux(f, labelNum) {
+    return `",${f.f7 || ""},,cp${labelNum}"`;
+  }
+
+  function saida(labelNum, anterior, sufixo = "EX") {
+    if (anterior == null) return `${labelNum}${sufixo}\tgoto 9999:%=27!(%=140)`;
+    return `${labelNum}${sufixo}\tgoto 9999:%=27,${anterior}:%=140`;
+  }
+
+  function gen0000(cfg, vars) {
+    const L = [];
+    chunk(vars, 14).forEach((ch, i) => {
+      const list = ch.join(",");
+      L.push(`${i === 0 ? "0000" : ""}\tdo New^%CSW1UTI("${list}")`);
+      L.push(`\tnew ${list}`);
+    });
+    L.push(
+      "\t;",
+      "\t; Trava de execução",
+      `\tset sc=$$ValidarExecucaoCSW^${cfg.trava}()`,
+      "\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) quit",
+      "\t;",
+      `\tset %PRG="${cfg.nome}",CT=%index`,
+      "\t;",
+      `\t; csw:aj:${cfg.ajCols},${cfg.ajRows},${cfg.titulo}`,
+      `\tdo AJ^%CSUTIUD(${cfg.ajCols},${cfg.ajRows},"${cfg.titulo}")`
+    );
+    return L;
+  }
+
+  function gen0500(cfg, items) {
+    const rg = cfg.nome + "RG";
+    const kills = [];
+    const L = [...hdr("Iniciar variáveis")];
+    for (const f of items) {
+      if (f.kind === "multiselect") kills.push(f.selVar, f.tabVar);
+      if (f.kind === "combo") kills.push(f.tabVar);
+    }
+    if (items.some((f) => f.kind === "simnao")) kills.push("TABSIM");
+    L.push(`0500\tkill ${unique(kills.length ? kills : ["TABGRID"]).join(",")}`);
+    L.push("\t;");
+
+    let temCarga = false;
+    for (const f of items) {
+      if (f.kind === "multiselect" || f.kind === "combo") {
+        L.push(`\tset sc=$$${f.regraTab}^${rg}(.${f.tabVar})`);
+        temCarga = true;
+      }
+    }
+    if (items.some((f) => f.kind === "simnao")) {
+      L.push(`\tset sc=$$ObterTabSimNao^%CSW1E(.TABSIM)`);
+      temCarga = true;
+    }
+    const periodos = items.filter((f) => f.kind === "periodo");
+    if (periodos.length) {
+      L.push(`\tset sc=$$ObterValoresIniciais^${rg}(${periodos.map((p) => "." + p.varDe).join(",")})`);
+      temCarga = true;
+    }
+    if (temCarga) L.push("\t;");
+
+    const vazios = items
+      .filter((f) => !["periodo", "multiselect"].includes(f.kind))
+      .flatMap((f) => (f.kind === "display" ? [f.varName, f.descVar] : [f.varName]));
+    if (vazios.length) L.push(`\tset (${unique(vazios).join(",")})=""`);
+    if (periodos.length) L.push(`\tset (${periodos.map((p) => p.varAte).join(",")})=+$$$horolog`);
+    if (vazios.length || periodos.length) L.push("\t;");
+    L.push("\tdo 9000");
+    return L;
+  }
+
+  function genFiltros(cfg, items) {
+    const L = [];
+    items.forEach((f, idx) => {
+      const ant = idx > 0 ? items[idx - 1].lastLabel : null;
+      const n = f.labelNum;
+      L.push("\t;", `\t; ${f.label}`, `${n}\t;`);
+
+      switch (f.kind) {
+        case "display":
+          L.push(`${n}ON\tdo Set^%CSW1UTI(%PRG,"${f.dsId}","")`);
+          L.push(`\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varName}",${f.varName},"@'?.N",${flag1(f)},,${raux(f, n)})`);
+          break;
+        case "inteiro":
+          L.push(`${n}ON\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varName}",${f.varName},"@'?.N",${flag1(f)},,${raux(f, n)})`);
+          break;
+        case "data":
+          L.push(`${n}ON\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varName}",${f.varName},,${flag1(f, "1,3")},,${raux(f, n)})`);
+          break;
+        case "combo":
+          L.push(`${n}ON\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varName}",${f.varName},,${flag1(f)},,${raux(f, n)},,,,,1,.${f.tabVar})`);
+          break;
+        case "simnao":
+          L.push(`${n}ON\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varName}",${f.varName},,${flag1(f)},,${raux(f, n)},,,,,3,.TABSIM)`);
+          break;
+        case "multiselect":
+          L.push(
+            `${n}ON\tdo ^%CSUTIMM("${f.tabVar}","1",,,"1,0","${f.selVar}","${f.label}",,,,,,,"${n}MM1^${cfg.nome}","${f.col},${f.lin},${f.tam},${n}^${cfg.nome}")`
+          );
+          L.push("\tquit:$$CSP^%CSW1UTI()");
+          L.push(ant == null ? `${n}MM1\tgoto 9999:%=27!(%=140)` : `${n}MM1\tgoto ${ant}:%=27!(%=140)`);
+          L.push(`\tif '$$Valcp${n}() goto ${n}`);
+          return;
+        case "periodo":
+          L.push(`${n}ON\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varDe}",${f.varDe},,${flag1(f, "1,3")},,${raux(f, n)})`);
+          L.push("\tquit:$$CSP^%CSW1UTI()");
+          L.push(saida(n, ant));
+          L.push(`\tif '$$Valcp${n}() goto ${n}`);
+          L.push("\t;", `\t; ${f.labelAte}`, `${f.labelNumAte}\t;`);
+          L.push(
+            `${f.labelNumAte}ON\tdo ^%CSLE(${f.lin},${f.colAte},${f.tam},"${f.varAte}",${f.varAte},,${flag1(f, "1,3")},,${raux(f, f.labelNumAte)})`
+          );
+          L.push("\tquit:$$CSP^%CSW1UTI()");
+          L.push(saida(f.labelNumAte, n));
+          L.push(`\tif '$$Valcp${f.labelNumAte}() goto ${f.labelNumAte}`);
+          return;
+        default:
+          L.push(`${n}ON\tdo ^%CSLE(${f.lin},${f.col},${f.tam},"${f.varName}",${f.varName},,${flag1(f)},,${raux(f, n)})`);
+      }
+      L.push("\tquit:$$CSP^%CSW1UTI()");
+      L.push(saida(n, ant));
+      L.push(`\tif '$$Valcp${n}() goto ${n}`);
+    });
+    return L;
+  }
+
+  function genConsulta(cfg, lay) {
+    const rg = cfg.nome + "RG";
+    const ultimo = lay.items.length ? lay.items[lay.items.length - 1].lastLabel : "1999";
+    const L = [];
+    L.push(...hdr("Consultar"), `1999\tdo Focus^%CSW1UTI(%PRG,"btConsultar",,1) quit`);
+    L.push(
+      ...hdr("Gerar grid"),
       `2000\tif '$$Validate() quit:$$CSP^%CSW1UTI()`,
-      `\t;`,
+      "\t;",
       `\tset sc=$$Limpar^%CSW1GRID(CT,%PRG,1)`,
       `\tset sc=$$Inicializar^%CSW1GRID(CT,%PRG,1,.TABGRID)`,
-      `\t;`,
-      `\tdo AG^%CSUTIUD(,"2000AG^${nome}")`,
-      `\tquit:$$CSP^%CSW1UTI()`,
-      `\t;`,
-      `2000AG\tset sc=$$GerarGlobalTrabalho^${nome}RG(${rgArgs})`,
-      `\t;`,
-      `\tset sc=$$GerarGrid^${nome}RG(CT,%PRG,CE)`,
-      `\t;`,
-      `\tdo FJ^%CSUTIUD`,
-      `\tdo FJAG^%CSW1UTI`,
-      `\t;`,
-      `\tset sc=$$ValidarDisplay^%CSW1GRID(CT,%PRG,1)`,
       `\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) goto 1999`,
-      `\t;`,
-      `\tset sc=$$Movimentar^%CSW1GRID(CT,%PRG,1,,1)`,
-      `\t;`,
-      `\tset sc=$$ObterDadosLinha^%CSW1GRID(CT,%PRG,1,,.DADDET)`,
-      `\t;`,
-      `\t; Foco no grid`,
-      `\t;`,
-      `2999\tdo Focus^%CSW1GRID3(CT,%PRG,1,1) quit`,
-      `\t;`
+      "\t;",
+      `\tdo AG^%CSUTIUD(,"2000AG1^${cfg.nome}")`,
+      "\tquit:$$CSP^%CSW1UTI()",
+      "\t;",
+      `2000AG1\tset sc=$$GerarGlobalTrabalho^${rg}(${argsGlobalTrabalho(lay.items)})`,
+      `\tif $$$ISOK(sc) set sc=$$GerarGrid^${rg}(CT,%PRG,CE)`,
+      "\t;",
+      "\tdo FJ^%CSUTIUD",
+      "\tdo FJAG^%CSW1UTI",
+      "\t;",
+      "\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) goto 1999",
+      "\t;",
+      `\tset sc=$$ValidarDisplay^%CSW1GRID(CT,%PRG,1)`,
+      `\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) goto ${ultimo}`,
+      "\t;",
+      `\tset sc=$$Movimentar^%CSW1GRID(CT,%PRG,1,,1)`
     );
+    if (lay.botoes.length) L.push("\t;", "\tdo 7000(1)");
+    L.push(...hdr("Foco no grid"), `2999\tdo Focus^%CSW1GRID3(CT,%PRG,1,1) quit`);
+    return L;
   }
 
-  function gen8000() {
-    return lines(
-      `\t; Mostra Dados`,
-      `\t;`,
-      `8000\tquit`,
-      `\t;`
-    );
-  }
-
-  function gen9000(cfg, model, filterItems) {
-    const lastLin = filterItems.reduce((m, f) => Math.max(m, f.lin), 1);
-    const linPos = Math.max(lastLin + 1, 6);
-    const linIni = linPos + 2;
-    const altura = Math.max(8, cfg.ajRows - linPos);
-    const linFim = linPos + altura - 1;
-    const colFim = Math.max(40, cfg.ajCols - 1);
-
+  function genAcoes(lay) {
     const L = [];
-    L.push(`\t; Tela`);
-    L.push(`\t;`);
-    L.push(`9000\tdo Enable^%CSW1UTI()`);
-    L.push(`\tdo Clear^%CSW1UTI()`);
-    if (model.buttons.consultar) L.push(`\tdo BtnConsultar^%CSW1D(1)`);
-    L.push(`\tdo BtnNavega^%CSW1D(0)`);
-    L.push(`\t;`);
-    L.push(`\tkill TABGRID`);
-    L.push(`\t;`);
+    for (const b of lay.botoes) {
+      L.push(...hdr(b.titulo), `${b.label}\t; TODO: implementar a ação "${b.titulo}" (delegar à regra)`, "\tgoto 2999");
+    }
+    if (lay.botoes.length) {
+      L.push(...hdr("Habilitar/desabilitar botões"), `7000(HABBOT)\t;`, "\tset HABBOT=$get(HABBOT)");
+      for (const b of lay.botoes) L.push(`\tdo HabBotGeral^%CSW1("${b.nome}",HABBOT)`);
+      L.push("\tquit");
+    }
+    return L;
+  }
+
+  function gen9000(cfg, model, lay) {
+    const g = lay.grid;
+    const L = [...hdr("Tela")];
+    L.push("9000\tdo Clear^%CSW1UTI()", "\tdo Enable^%CSW1UTI()", "\tdo BtnConsultar^%CSW1D(1)");
+    if (lay.botoes.length) L.push("\tdo 7000(0)");
+
+    const inits = [];
+    for (const f of lay.items) {
+      if (f.kind === "combo") inits.push(`\tdo InicializaCombo^%CSW1A("cp${f.labelNum}",.${f.tabVar},0,${f.varName},,,1)`);
+      if (f.kind === "simnao") inits.push(`\tdo InicializaRadio^%CSW1A("cp${f.labelNum}",.TABSIM,0,${f.varName},,,1)`);
+    }
+    if (inits.length) L.push("\t;", ...inits);
+
+    L.push("\t;", "\tkill TABGRID");
     L.push(
-      `\tset TABGRID(1)="; csw:gridConf:cod=1; LinPos=${linPos}; Altura=${altura}; LinIni=${linIni}; LinFim=${linFim}; ColIni=1; ColFim=${colFim}; HabilitaNavegacao=1;"`
+      `\tset TABGRID(1)="; csw:gridConf:cod=1; LinPos=${g.linPos}; Altura=${g.altura}; LinIni=${g.linIni}; LinFim=${g.linFim}; ColIni=1; ColFim=${g.colFim}; HabilitaNavegacao=1; LabelEdit=TbCellClick^${cfg.nome};"`
     );
-
     model.columns.forEach((col, i) => {
-      const n = i + 1;
-      const alin = col.tipo === "n" || col.tipo === "v2" || col.tipo === "v3" ? " Alin=D;\t" : "\t\t";
-      const totalFlag = /valor|total|qtde|peso/i.test(col.name) ? "^^1" : "";
-      const pad = n < 10 ? "\t" : "";
-      L.push(
-        `\tset TABGRID(1,${n})=";${pad}csw:gridCols:cod=1; Tipo=${col.tipo};${alin}Csw=${col.width}^${col.name}^${n}${totalFlag};"`
-      );
+      const alin = /^(n|v\d?|f\d)$/.test(col.tipo) ? " Alin=D;" : "";
+      L.push(`\tset TABGRID(1,${i + 1})="; csw:gridCols:cod=1; Tipo=${col.tipo};${alin}\tCsw=${col.width}^${col.name};"`);
     });
-
-    L.push(`\t;`);
-    L.push(`\tset sc=$$Inicializar^%CSW1GRID(CT,%PRG,1,.TABGRID)`);
-    L.push(`\tset sc=$$Limpar^%CSW1GRID(CT,%PRG,1)`);
-    L.push(`\t;`);
-    L.push(`\tquit`);
-    L.push(`\t;`);
-    return L.join("\n");
+    L.push(
+      "\t;",
+      `\tset sc=$$Inicializar^%CSW1GRID(CT,%PRG,1,.TABGRID)`,
+      `\tset sc=$$Limpar^%CSW1GRID(CT,%PRG,1)`,
+      "\tquit"
+    );
+    return L;
   }
 
   function gen9999(cfg) {
-    return lines(
-      `\t; Fim`,
-      `\t;`,
-      `9999\tset sc=$$ExcluirGlobalTrabalho^${cfg.nome}RG(CT)`,
-      `\tset sc=$$Finalizar^%CSW1GRID(CT,%PRG,1)`,
-      `\t;`,
-      `\tdo FJ^%CSUTIUD`,
-      `\tdo FJ^%CSW1UTI`,
-      `\t;`,
-      `\tquit`,
-      `\t;`
-    );
+    return [
+      ...hdr("Fim"),
+      `9999\tset sc=$$Finalizar^%CSW1GRID(CT,%PRG,1)`,
+      `\tset sc=$$ExcluirGlobalTrabalho^${cfg.nome}RG(CT)`,
+      "\t;",
+      "\tdo FJ^%CSUTIUD",
+      "\tdo FJ^%CSW1UTI",
+      "\tquit",
+    ];
   }
 
-  function genValcps(filterItems) {
-    const L = [];
-    for (const f of filterItems) {
-      if (f.kind === "campoDisplay") {
-        L.push(`\t; Metodo Valcp${f.labelNum}()`);
-        L.push(`\t;`);
-        L.push(`Valcp${f.labelNum}()\t;`);
-        L.push(`\t;`);
-        if (/CODCLI/i.test(f.varName)) {
-          L.push(`\tif ${f.varName}="" do  quit $$$OK`);
-          L.push(`\t. do Set^%CSW1UTI(%PRG,"${f.dsId}","Todos")`);
-          L.push(`\t;`);
-          L.push(`\tset sc=$$ObterDescGrupFinceiroCliente^CCCDBRG001(CE,.${f.varName},.DESCCLI)`);
-          L.push(`\t;`);
-          L.push(`\tdo Set^%CSW1UTI(%PRG,"${f.dsId}",DESCCLI)`);
-          L.push(`\t;`);
-          L.push(`\tquit $$$OK`);
-        } else if (/CODREP/i.test(f.varName)) {
-          L.push(`\tif ${f.varName}'="",${f.varName}'?.N do ME^%CSUTIUD("Representante: valor inválido! ("_${f.varName}_")") quit $$$OK`);
-          L.push(`\t;`);
-          L.push(`\tif ${f.varName}="",$order(SELREP(""))="" do  quit $$$OK`);
-          L.push(`\t. do Set^%CSW1UTI(%PRG,"${f.dsId}","Todos")`);
-          L.push(`\t;`);
-          L.push(`\tif ${f.varName}="",$order(SELREP(""))'="" do  quit $$$OK`);
-          L.push(`\t. do Set^%CSW1UTI(%PRG,"${f.dsId}","Selecionado(s)!")`);
-          L.push(`\t;`);
-          L.push(`\tset sc=$$VerRepresentante^CCFTRG001(CE,${f.varName},.REP)`);
-          L.push(`\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) quit $$$OK`);
-          L.push(`\t;`);
-          L.push(`\tdo Set^%CSW1UTI(%PRG,"${f.dsId}",$piece(REP,Z,20))`);
-          L.push(`\t;`);
-          L.push(`\tquit $$$OK`);
-        } else {
-          L.push(`\tdo Set^%CSW1UTI(%PRG,"${f.dsId}",${f.varName})`);
-          L.push(`\tquit $$$OK`);
-        }
-        L.push(`\t;`);
-      } else if (f.kind === "multiselect") {
-        L.push(`\t; Metodo Valcp${f.labelNum}()`);
-        L.push(`\t;`);
-        L.push(`Valcp${f.labelNum}()\t;`);
-        L.push(`\t;`);
-        L.push(`\tif '$data(${f.selVar}) do Set^%CSW1UTI(%PRG,"cp${f.labelNum}MM1","Todos")`);
-        L.push(`\t;`);
-        L.push(`\tquit $$$OK`);
-        L.push(`\t;`);
-      } else if (f.kind === "periodo") {
-        L.push(`\t; Metodo Valcp${f.labelNum}()`);
-        L.push(`\t;`);
-        L.push(`Valcp${f.labelNum}()\t;`);
-        L.push(`\tif ${f.varDe}="" do ME^%CSUTIUD("${f.labelDe}: campo obrigatório!") quit 0`);
-        L.push(`\tif ${f.varDe}'="",${f.varDe}'?.N do ME^%CSUTIUD("${f.labelDe}: valor inválido! ("_${f.varDe}_")") quit 0`);
-        L.push(`\t;`);
-        if (f.varDe === "DATINI") {
-          L.push(`\tset DATEMI=${f.varDe}-1`);
-          L.push(`\t;`);
-        }
-        L.push(`\tdo Set^%CSW1UTI(%PRG,"cp${f.labelNum}",$zdate(${f.varDe},4))`);
-        L.push(`\t;`);
-        L.push(`\tquit $$$OK`);
-        L.push(`\t;`);
-        L.push(`\t; Metodo Valcp${f.labelNumAte}()`);
-        L.push(`\t;`);
-        L.push(`Valcp${f.labelNumAte}()\t;`);
-        L.push(`\tif ${f.varAte}'="",${f.varAte}'?.N do ME^%CSUTIUD("${f.labelAte}: valor inválido! ("_${f.varAte}_")") quit 0`);
-        L.push(`\t;`);
-        L.push(`\tif ${f.varDe}>${f.varAte} do ME^%CSUTIUD("${f.labelAte} menor que inicial!") quit 0`);
-        L.push(`\t;`);
-        L.push(`\tif ${f.varAte}="" do  quit 1`);
-        L.push(`\t. set ${f.varAte}=999999`);
-        L.push(`\t. do Set^%CSW1UTI(%PRG,"cp${f.labelNumAte}","Fim")`);
-        L.push(`\t;`);
-        L.push(`\tquit $$$OK`);
-        L.push(`\t;`);
-      } else {
-        L.push(`\t; Metodo Valcp${f.labelNum}()`);
-        L.push(`\t;`);
-        L.push(`Valcp${f.labelNum}()\t;`);
-        L.push(`\tquit $$$OK`);
-        L.push(`\t;`);
-      }
-    }
-    return L.join("\n");
+  function msgObrig(label) {
+    return `do ME^%CSUTIUD("${label}: campo obrigatório!") quit 0`;
   }
 
-  function genValidate(filterItems) {
+  function genValcps(cfg, items) {
+    const rg = cfg.nome + "RG";
     const L = [];
-    L.push(`\t; Metodo Validate()`);
-    L.push(`\t;`);
-    L.push(`Validate()\t;`);
-    L.push(`\tquit:'$$CSP^%CSW1UTI() 1`);
-    for (const f of filterItems) {
+    const abre = (n, label) => L.push("\t;", `\t; Validar ${label}`, "\t;", `Valcp${n}()\t;`);
+
+    for (const f of items) {
+      const n = f.labelNum;
       if (f.kind === "periodo") {
-        L.push(`\tif '$$Valcp${f.labelNum}() do Focus^%CSW1UTI(%PRG,"cp${f.labelNum}") quit 0`);
-        L.push(`\tif '$$Valcp${f.labelNumAte}() do Focus^%CSW1UTI(%PRG,"cp${f.labelNumAte}") quit 0`);
-      } else {
-        L.push(`\tif '$$Valcp${f.labelNum}() do Focus^%CSW1UTI(%PRG,"cp${f.labelNum}") quit 0`);
+        abre(n, f.label);
+        if (f.obrigatorio) L.push(`\tif ${f.varDe}="" ${msgObrig(f.label)}`);
+        L.push("\tquit 1");
+        abre(f.labelNumAte, f.labelFim);
+        if (f.obrigatorio) L.push(`\tif ${f.varAte}="" ${msgObrig(f.labelFim)}`);
+        L.push(
+          `\tif ${f.varDe}'="",${f.varAte}'="",${f.varDe}>${f.varAte} do ME^%CSUTIUD("${f.labelFim} menor que a inicial!") quit 0`,
+          "\tquit 1"
+        );
+        continue;
       }
+      abre(n, f.label);
+      switch (f.kind) {
+        case "display":
+          if (f.obrigatorio) L.push(`\tif ${f.varName}="" ${msgObrig(f.label)}`);
+          else L.push(`\tif ${f.varName}="" do Set^%CSW1UTI(%PRG,"${f.dsId}","Todos") quit 1`);
+          L.push(
+            "\t;",
+            `\tset sc=$$${f.regraDesc}^${rg}(CE,${f.varName},.${f.descVar})`,
+            "\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) quit 0",
+            "\t;",
+            `\tdo Set^%CSW1UTI(%PRG,"${f.dsId}",${f.descVar})`
+          );
+          break;
+        case "multiselect":
+          if (f.obrigatorio) L.push(`\tif '$data(${f.selVar}) do ME^%CSUTIUD("${f.label}: selecione ao menos uma opção!") quit 0`);
+          else L.push(`\tif '$data(${f.selVar}) do Set^%CSW1UTI(%PRG,"cp${n}MM1","Todos")`);
+          break;
+        case "inteiro":
+          if (f.obrigatorio) L.push(`\tif ${f.varName}="" ${msgObrig(f.label)}`);
+          L.push(`\tif ${f.varName}'="",${f.varName}'?1.N do ME^%CSUTIUD("${f.label}: valor inválido! ("_${f.varName}_")") quit 0`);
+          break;
+        default:
+          if (f.obrigatorio) L.push(`\tif ${f.varName}="" ${msgObrig(f.label)}`);
+      }
+      L.push("\tquit 1");
     }
-    L.push(`\tquit $$$OK`);
-    L.push(`\t;`);
-    return L.join("\n");
+    return L;
   }
 
-  function genShow(cfg) {
-    return lines(
-      `\t; Metodo Show`,
-      `\t;`,
-      `Show(%cswP1,%cswP2,%cswP3,%cswP4)\t;`,
+  function genValidate(items) {
+    const L = [...hdr("Validar filtros"), "Validate()\t;", "\tquit:'$$CSP^%CSW1UTI() 1"];
+    for (const f of items) {
+      for (const n of f.kind === "periodo" ? [f.labelNum, f.labelNumAte] : [f.labelNum]) {
+        L.push(`\tif '$$Valcp${n}() do Focus^%CSW1UTI(%PRG,"cp${n}") quit 0`);
+      }
+    }
+    L.push("\tquit 1");
+    return L;
+  }
+
+  function genShowClick(cfg) {
+    return [
+      ...hdr("Ponto de entrada"),
+      "Show(%cswP1,%cswP2,%cswP3,%cswP4)\t;",
       `\tdo Show^%CSW1UTI("${cfg.nome}",$get(%cswP1),$get(%cswP2),$get(%cswP3),$get(%cswP4))`,
-      `\tquit`,
-      `\t;`
-    );
+      "\tquit",
+      ...hdr("Clique na célula do grid"),
+      "TbCellClick(%cswLin,%cswCol)\t;",
+      "\tgoto 2999",
+    ];
   }
 
-  function genTbCellClick() {
-    return lines(
-      `\t; Metodo TbCellClick`,
-      `\t;`,
-      `TbCellClick(%cswLin,%cswCol)\t;`,
-      `\tset COLUNA=$piece(%cswCol,";",1)`,
-      `\t;`,
-      `\tquit`,
-      `\t;`
-    );
+  function genTags(cfg, lay) {
+    const L = ["\t;"];
+    for (const f of lay.items) {
+      L.push(`\t; csw:label:1,${f.lin},${lay.largLabel},${f.label}`);
+      if (f.kind === "periodo") L.push(`\t; csw:label:${f.colLabelAte},${f.lin},4,${f.labelAte}`);
+    }
+    const displays = lay.items.filter((f) => f.kind === "display");
+    if (displays.length) {
+      L.push("\t;");
+      for (const f of displays) L.push(`\t; csw:display:${f.dsCol},${f.lin},${f.dsTam},${f.dsId}`);
+    }
+    L.push("\t;", `\t; csw:btnConsultar:${lay.colBtn},1,2000^${cfg.nome},0500^${cfg.nome}`);
+    for (const b of lay.botoes) {
+      L.push(`\t; csw:botao:${b.col},${b.lin},${b.nome},${b.tituloTag},${b.atalho},${b.label}^${cfg.nome},,,10`);
+    }
+    L.push("\t;", `\t; csw:labelcreate:${cfg.nome}`, "\t; csw:labeldestroy:9999", "\t; csw:csp:gerar");
+    return L;
   }
 
-  function genTags(cfg, model, filterItems) {
-    const L = [];
-    L.push(`\t; TAGS CSW`);
-    L.push(`\t;`);
-    for (const f of filterItems) {
-      if (f.kind === "periodo") {
-        L.push(`\t; csw:label:1,${f.lin},${f.labelTam},${f.labelDe}`);
-        L.push(`\t; csw:label:1,${f.lin},${f.colLabelAte},${f.labelAte}`);
-      } else {
-        L.push(`\t; csw:label:1,${f.lin},${f.labelTam},${f.label}`);
-      }
-    }
-    L.push(`\t;`);
-    for (const f of filterItems) {
-      if (f.kind === "campoDisplay") {
-        L.push(`\t; csw:display:${f.dsCol},${f.lin},${f.dsTam},${f.dsId}`);
-      }
-    }
-    L.push(`\t;`);
-    if (model.buttons.consultar || model.buttons.limpar) {
-      L.push(`\t; csw:btnConsultar:97,2,2000^${cfg.nome},0500^${cfg.nome}`);
-    }
-    L.push(`\t;`);
-    L.push(`\t; csw:labelcreate:${cfg.nome}`);
-    L.push(`\t; csw:labeldestroy:9999`);
-    L.push(`\t; csw:csp:gerar`);
-    return L.join("\n");
-  }
-
-  function generateMac(cfg, model) {
-    const { filterItems } = assignLayout(model);
-    const vars = collectVars(filterItems);
-    const chunks = chunkVars(vars, 14);
-    const hasCliente = filterItems.some((f) => /CODCLI/i.test(f.varName || ""));
-
-    const headerNew = [];
-    chunks.forEach((ch, idx) => {
-      const list = ch.join(",");
-      if (idx === 0) {
-        headerNew.push(`0000\tdo New^%CSW1UTI("${list}")`);
-        headerNew.push(`\tnew ${list}`);
-      } else {
-        headerNew.push(`\tdo New^%CSW1UTI("${list}")`);
-        headerNew.push(`\tnew ${list}`);
-      }
-    });
-
-    const mac = lines(
+  function generateTela(cfg, model, lay) {
+    const vars = varsTela(lay.items);
+    return [
       `ROUTINE ${cfg.nome}`,
       `${cfg.nome}\t; ${cfg.mesAno} - ${String(cfg.titulo).toUpperCase()}`,
-      `\t;`,
-      `\t#include %CSUTICSP`,
-      `\t;`,
-      ...headerNew,
-      `\t;`,
-      `\tset %PRG="${cfg.nome}",CT=%index`,
-      `\t;`,
-      hasCliente
-        ? `\tset sc=$$ObterConfLeitor^CCCDBRG001(CE,"Grupo: 1",.CFGCLI)`
-        : lines(`\tset sc=$$ValidarExecucaoCSW^CCUTIRG001()`, `\tif sc'=1 do ME^%CSUTICSP(sc) quit`),
-      `\t;`,
-      `\t; csw:aj:${cfg.ajCols},${cfg.ajRows},${cfg.titulo}`,
-      `\tdo AJ^%CSUTIUD(${cfg.ajCols},${cfg.ajRows},"${cfg.titulo}")`,
-      `\t;`,
-      gen0500(cfg, filterItems),
-      genFilters(cfg, filterItems),
-      genConsultaGrid(cfg, filterItems),
-      gen8000(),
-      gen9000(cfg, model, filterItems),
-      gen9999(cfg),
-      genValcps(filterItems),
-      genValidate(filterItems),
-      genShow(cfg),
-      genTbCellClick(),
-      genTags(cfg, model, filterItems),
-      ``
+      "\t;",
+      "\t#include %CSUTICSP",
+      "\t;",
+      ...gen0000(cfg, vars),
+      ...gen0500(cfg, lay.items),
+      ...genFiltros(cfg, lay.items),
+      ...genConsulta(cfg, lay),
+      ...genAcoes(lay),
+      ...gen9000(cfg, model, lay),
+      ...gen9999(cfg),
+      ...genValcps(cfg, lay.items),
+      ...genValidate(lay.items),
+      ...genShowClick(cfg),
+      ...genTags(cfg, lay),
+      "",
+    ].join("\n");
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* REGRAS — {NOME}RG.mac                                               */
+  /* ------------------------------------------------------------------ */
+
+  function newLines(vars, porLinha = 10) {
+    return chunk(unique(vars), porLinha).map((ch) => `\tnew ${ch.join(",")}`);
+  }
+
+  function regra(cfg, desc, assinatura, chamada, corpo) {
+    const rg = cfg.nome + "RG";
+    const L = ["\t;", `\t; ${desc}`];
+    if (cfg.autor) L.push(`\t; (${cfg.autor} - ${hoje()})`);
+    const [label, args] = chamada.split(/\((.*)\)$/s);
+    L.push(`\t; set sc=$$${label}^${rg}(${args || ""})`, `${assinatura}\t;`, "\t$$$VAR", ...corpo);
+    return L;
+  }
+
+  function dicaFiltro(f) {
+    switch (f.kind) {
+      case "periodo":
+        return [`\t;. if (data${NS.util.pascal(f.label)}<${f.paramDe})!(data${NS.util.pascal(f.label)}>${f.paramAte}) quit`];
+      case "multiselect":
+        return [`\t;. if $data(${f.param})&&((valor="")||('$data(${f.param}(valor)))) quit  ; ${f.label}`];
+      default:
+        return [`\t;. if (${f.param}'=""),(valor'=${f.param}) quit  ; ${f.label}`];
+    }
+  }
+
+  function generateRG(cfg, model, lay) {
+    const rg = cfg.nome + "RG";
+    const mtemp = `^mtemp${cfg.nome}`;
+    const L = [
+      `ROUTINE ${rg}`,
+      `${rg}\t; ${cfg.mesAno} - REGRAS DE ${String(cfg.titulo).toUpperCase()}`,
+      "\t;",
+      "\t#include %CSUTICSP",
+    ];
+
+    // Valores iniciais dos períodos
+    const periodos = lay.items.filter((f) => f.kind === "periodo");
+    if (periodos.length) {
+      const ps = periodos.map((p) => p.paramDe);
+      L.push(
+        ...regra(cfg, "Obter valores iniciais dos filtros", `ObterValoresIniciais(${ps.join(",")})`, `ObterValoresIniciais(${ps.map((p) => "." + p).join(",")})`, [
+          "\tnew dataHoje",
+          "\t;",
+          "\tset dataHoje=+$$$horolog",
+          "\t;",
+          "\t; Primeiro dia do mês atual",
+          `\tset (${ps.join(",")})=dataHoje-$piece($zdate(dataHoje,4),"/",1)+1`,
+          "\t;",
+          "\tquit $$$OK",
+        ])
+      );
+    }
+
+    // Tabelas de multiseleção / combo
+    for (const f of lay.items.filter((x) => x.kind === "multiselect" || x.kind === "combo")) {
+      const corpo = ["\tkill tabela", "\t;"];
+      if (f.opcoes && f.opcoes.length) f.opcoes.forEach((o, i) => corpo.push(`\tset tabela(${i + 1})="${o}"`));
+      else corpo.push(`\t; TODO: carregar as opções de "${f.label}"`, `\tset tabela(1)="Opção 1"`);
+      corpo.push("\t;", "\tquit $$$OK");
+      L.push(...regra(cfg, `Obter tabela de ${f.label.toLowerCase()}`, `${f.regraTab}(tabela)`, `${f.regraTab}(.tabela)`, corpo));
+    }
+
+    // Descrições dos campos com display
+    for (const f of lay.items.filter((x) => x.kind === "display")) {
+      L.push(
+        ...regra(cfg, `Obter descrição de ${f.label.toLowerCase()}`, `${f.regraDesc}(codEmpresa,codigo,descricao)`, `${f.regraDesc}(codEmpresa,codigo,.descricao)`, [
+          "\tset descricao=\"\"",
+          "\tif (codigo=\"\") quit $$$OK",
+          "\t;",
+          `\t; TODO: usar a regra Obter*/Ver* do módulo de ${f.label.toLowerCase()} (não ler o global direto)`,
+          `\t; set sc=$$Ver...^...(codEmpresa,codigo,.registro)`,
+          `\t; if $$$ISERR(sc) quit sc`,
+          `\t; set descricao=codigo_" - "_$piece(registro,z,1)`,
+          "\t;",
+          "\tquit $$$OK",
+        ])
+      );
+    }
+
+    // Global de trabalho
+    const params = paramsGlobalTrabalho(lay.items);
+    const chamadaGT = params.map((p) => (lay.items.some((f) => f.kind === "multiselect" && f.param === p) ? "." + p : p)).join(",");
+    const dicas = lay.items.flatMap(dicaFiltro);
+    L.push(
+      ...regra(cfg, "Gerar global de trabalho", `GerarGlobalTrabalho(${params.join(",")})`, `GerarGlobalTrabalho(${chamadaGT})`, [
+        "\tnew sc,chave,dados",
+        "\t;",
+        "\tset sc=$$ExcluirGlobalTrabalho(term)",
+        "\t;",
+        "\t; TODO: percorrer o global de negócio aplicando os filtros e gravar",
+        `\t; uma linha por registro em ${mtemp}(term,chave), com os pieces na`,
+        "\t; mesma ordem das colunas do grid (ver GravarLinha)",
+        "\t;",
+        "\t;set chave=\"\"",
+        "\t;for  set chave=$order(^GLOBAL(codEmpresa,chave)) quit:chave=\"\"  do",
+        "\t;. ;",
+        ...dicas,
+        "\t;. ;",
+        `\t;. set ${mtemp}(term,chave)=dados`,
+        "\t;",
+        "\tquit $$$OK",
+      ])
     );
 
+    L.push(
+      ...regra(cfg, "Gerar grid", "GerarGrid(term,rotina,codEmpresa)", "GerarGrid(term,rotina,codEmpresa)", [
+        "\tnew sc,chave",
+        "\t;",
+        "\tset sc=$$$OK",
+        "\tset chave=\"\"",
+        `\tfor  set chave=$order(${mtemp}(term,chave)) quit:chave=""  do  quit:$$$ISERR(sc)`,
+        "\t. ;",
+        "\t. set sc=$$GravarLinha(term,rotina,codEmpresa,chave)",
+        "\t;",
+        "\tquit sc",
+      ])
+    );
+
+    const cols = model.columns;
+    L.push(
+      ...regra(
+        cfg,
+        "Gravar linha do grid",
+        "GravarLinha(term,rotina,codEmpresa,chave,codRegistro)",
+        "GravarLinha(term,rotina,codEmpresa,chave)",
+        [
+          ...newLines(["sc", "linha", "dados", "display", "detalha", ...cols.map((c) => c.param)]),
+          "\t;",
+          "\tset codRegistro=$get(codRegistro)",
+          "\tset (dados,display,detalha)=\"\"",
+          "\t;",
+          `\tset linha=$get(${mtemp}(term,chave))`,
+          ...cols.map((c, i) => `\tset ${c.param}=$piece(linha,z,${i + 1})`),
+          "\t;",
+          ...cols.map((c, i) => `\tset $piece(dados,z,${i + 1})=${c.param}`),
+          "\t;",
+          "\t; display: texto exibido no lugar do valor (ex.: código - descrição)",
+          "\t;set $piece(display,z,N)=...",
+          "\t;",
+          "\tset $piece(detalha,z,1)=chave",
+          "\t;",
+          "\tset sc=$$GravarLinhas^%CSW1GRID(term,rotina,1,dados,display,detalha,codRegistro,,,,,,1)",
+          "\t;",
+          "\tquit sc",
+        ]
+      )
+    );
+
+    L.push(
+      ...regra(cfg, "Excluir global de trabalho", "ExcluirGlobalTrabalho(term)", "ExcluirGlobalTrabalho(term)", [
+        "\t;",
+        `\tkill ${mtemp}(term)`,
+        "\t;",
+        "\tquit $$$OK",
+      ])
+    );
+
+    L.push("\t;", "\t; csw:csp:naogerar", "");
+    return L.join("\n");
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Avisos de padrão                                                    */
+  /* ------------------------------------------------------------------ */
+
+  function avisos(cfg, model, lay) {
+    const out = [];
+    for (const f of model.filters) out.push(...f.avisos);
+    if (/%/.test(cfg.titulo)) out.push('Título com "%" — use "Perc."');
+    if (/^(gerar|consultar|listar|emitir|imprimir|calcular|manter|cadastrar|exibir|mostrar)\b/i.test(cfg.titulo))
+      out.push("Título não deve começar com verbo (ex.: \"Consulta de…\", não \"Consultar…\").");
+    for (const f of model.filters) if (/%/.test(f.label)) out.push(`Filtro "${f.label}" com "%" — use "Perc."`);
+    for (const c of model.columns) if (/%/.test(c.name)) out.push(`Coluna "${c.name}" com "%" — use "Perc."`);
+    if (lay.blocos > 36) out.push(`${lay.blocos} campos de filtro — avalie dividir em abas (interface-abas).`);
+    if (lay.grid.altura < 5) out.push(`Grid com altura ${lay.grid.altura} — muitos filtros para ${cfg.ajRows} linhas.`);
+    if (!model.columns.length) out.push("Nenhuma coluna informada — o grid sai vazio.");
+    if (!/^[A-Z%][A-Z0-9]*$/.test(cfg.nome)) out.push("Nome da rotina deve ser só letras maiúsculas e números.");
+    return out;
+  }
+
+  function generate(cfg, model) {
+    const lay = assignLayout(cfg, model);
     return {
-      mac,
+      tela: generateTela(cfg, model, lay),
+      rg: generateRG(cfg, model, lay),
+      avisos: avisos(cfg, model, lay),
       meta: {
-        filters: filterItems.length,
-        columns: model.columns.length,
         nome: cfg.nome,
+        filters: lay.items.length,
+        columns: model.columns.length,
+        botoes: lay.botoes.length,
       },
     };
   }
 
-  NS.generateMac = generateMac;
+  NS.generate = generate;
 })(window.GeracaoRotina);

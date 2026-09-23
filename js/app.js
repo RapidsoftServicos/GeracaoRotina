@@ -2,20 +2,23 @@
 
 (function () {
   const NS = window.GeracaoRotina;
+  const $ = (id) => document.getElementById(id);
   const el = {
-    nome: document.getElementById("cfgNome"),
-    titulo: document.getElementById("cfgTitulo"),
-    ajCols: document.getElementById("cfgAjCols"),
-    ajRows: document.getElementById("cfgAjRows"),
-    specIn: document.getElementById("specIn"),
-    outMac: document.getElementById("outMac"),
-    outMeta: document.getElementById("outMeta"),
-    toast: document.getElementById("toast"),
-    btnExample: document.getElementById("btnExample"),
-    btnGenerate: document.getElementById("btnGenerate"),
-    btnCopy: document.getElementById("btnCopy"),
-    btnDownload: document.getElementById("btnDownload"),
+    nome: $("cfgNome"),
+    autor: $("cfgAutor"),
+    titulo: $("cfgTitulo"),
+    ajCols: $("cfgAjCols"),
+    ajRows: $("cfgAjRows"),
+    trava: $("cfgTrava"),
+    specIn: $("specIn"),
+    outMac: $("outMac"),
+    outMeta: $("outMeta"),
+    outAvisos: $("outAvisos"),
+    help: $("help"),
+    toast: $("toast"),
   };
+
+  const state = { tab: "tela", result: null, nome: "" };
 
   function showToast(msg) {
     el.toast.textContent = msg;
@@ -31,77 +34,98 @@
 
   function readCfg() {
     return {
-      nome: (el.nome.value || "ROTINA").trim().toUpperCase().replace(/\W/g, "") || "ROTINA",
+      nome: (el.nome.value || "").trim().toUpperCase().replace(/[^%A-Z0-9]/g, ""),
+      autor: (el.autor.value || "").trim().toUpperCase(),
       titulo: (el.titulo.value || "Consulta").trim(),
       mesAno: mesAnoAtual(),
       ajCols: Math.min(108, Math.max(40, Number(el.ajCols.value) || 108)),
       ajRows: Math.min(28, Math.max(10, Number(el.ajRows.value) || 28)),
+      trava: el.trava.value,
     };
+  }
+
+  function render() {
+    const r = state.result;
+    el.outMac.value = r ? (state.tab === "tela" ? r.tela : r.rg) : "";
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === state.tab));
   }
 
   function generate() {
     const cfg = readCfg();
-    const model = NS.parseSpec(el.specIn.value, { titulo: cfg.titulo });
-    if (!cfg.titulo && model.titulo) {
-      el.titulo.value = model.titulo;
-      cfg.titulo = model.titulo;
+    if (!cfg.nome) {
+      showToast("Informe o nome da rotina");
+      el.nome.focus();
+      return;
     }
+    const model = NS.parseSpec(el.specIn.value, { titulo: cfg.titulo });
     if (!model.filters.length && !model.columns.length) {
       showToast("Especifique Filtros e/ou Colunas");
       return;
     }
-    const { mac, meta } = NS.generateMac(cfg, model);
-    el.outMac.value = mac;
-    el.outMeta.textContent = `${meta.nome} · ${meta.filters} filtro(s) · ${meta.columns} coluna(s)`;
+    state.result = NS.generate(cfg, model);
+    state.nome = cfg.nome;
+    const m = state.result.meta;
+    el.outMeta.textContent = `${m.nome} · ${m.filters} filtro(s) · ${m.columns} coluna(s) · ${m.botoes} botão(ões) extra`;
+
+    el.outAvisos.innerHTML = "";
+    for (const a of state.result.avisos) {
+      const li = document.createElement("li");
+      li.textContent = a;
+      el.outAvisos.appendChild(li);
+    }
+    el.outAvisos.classList.toggle("hidden", !state.result.avisos.length);
+    render();
   }
 
   async function copyOut() {
     const text = el.outMac.value;
-    if (!text) {
-      showToast("Nada para copiar");
-      return;
-    }
+    if (!text) return showToast("Nada para copiar");
     try {
       await navigator.clipboard.writeText(text);
-      showToast("Copiado!");
     } catch {
       el.outMac.select();
       document.execCommand("copy");
-      showToast("Copiado!");
     }
+    showToast("Copiado!");
+  }
+
+  function baixar(nomeArquivo, texto) {
+    // Fontes do ERP são CRLF
+    const blob = new Blob([texto.replace(/\r?\n/g, "\r\n")], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nomeArquivo;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   function downloadOut() {
-    const cfg = readCfg();
-    const text = el.outMac.value;
-    if (!text) {
-      showToast("Gere antes de baixar");
-      return;
-    }
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${cfg.nome}.txt`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const r = state.result;
+    if (!r) return showToast("Gere antes de baixar");
+    baixar(`${state.nome}.mac`, r.tela);
+    setTimeout(() => baixar(`${state.nome}RG.mac`, r.rg), 300);
     showToast("Download iniciado");
   }
 
-  el.btnExample.addEventListener("click", () => {
+  $("btnExample").addEventListener("click", () => {
     el.specIn.value = NS.EXAMPLE_SPEC;
-    el.nome.value = "PRLPPV600";
+    el.nome.value = "CCXX600";
     el.titulo.value = "Consulta de Pedidos";
-    el.ajCols.value = "108";
-    el.ajRows.value = "28";
     generate();
     showToast("Exemplo carregado");
   });
-  el.btnGenerate.addEventListener("click", generate);
-  el.btnCopy.addEventListener("click", copyOut);
-  el.btnDownload.addEventListener("click", downloadOut);
+  $("btnGenerate").addEventListener("click", generate);
+  $("btnCopy").addEventListener("click", copyOut);
+  $("btnDownload").addEventListener("click", downloadOut);
+  $("btnHelp").addEventListener("click", () => el.help.classList.toggle("hidden"));
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.addEventListener("click", () => {
+      state.tab = t.dataset.tab;
+      render();
+    })
+  );
 
-  // Atalho Ctrl+Enter
-  el.specIn.addEventListener("keydown", (e) => {
+  document.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.key === "Enter") {
       e.preventDefault();
       generate();

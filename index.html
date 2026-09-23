@@ -4,19 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Geração de Rotina CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=4" />
+  <link rel="stylesheet" href="css/styles.css?v=5" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <strong>Geração de Rotina</strong>
-      <span>Consulta CSW a partir da especificação</span>
+      <span>Consulta CSW (tela + regras) a partir da especificação</span>
     </div>
     <div class="top-actions">
-      <button type="button" id="btnExample" class="btn ghost">Exemplo PRLPPV600</button>
-      <button type="button" id="btnGenerate" class="btn primary">Gerar .txt</button>
+      <button type="button" id="btnExample" class="btn ghost">Exemplo</button>
+      <button type="button" id="btnGenerate" class="btn primary" title="Ctrl+Enter">Gerar</button>
       <button type="button" id="btnCopy" class="btn ghost">Copiar</button>
-      <button type="button" id="btnDownload" class="btn ghost">Baixar .txt</button>
+      <button type="button" id="btnDownload" class="btn ghost">Baixar .mac</button>
     </div>
     <div id="toast" class="toast hidden" role="status">Copiado!</div>
   </header>
@@ -25,15 +25,21 @@
     <aside class="panel left">
       <section>
         <h2>Configuração</h2>
-        <div class="form-row">
-          <label for="cfgNome">Nome da rotina</label>
-          <input id="cfgNome" type="text" value="PRLPPV600" spellcheck="false" />
-        </div>
-        <div class="form-row">
-          <label for="cfgTitulo">Título (AJ)</label>
-          <input id="cfgTitulo" type="text" value="Consulta de Pedidos" />
-        </div>
         <div class="form-row inline">
+          <div>
+            <label for="cfgNome">Nome da rotina</label>
+            <input id="cfgNome" type="text" value="" placeholder="CCXX600" spellcheck="false" />
+          </div>
+          <div>
+            <label for="cfgAutor">Sigla do autor</label>
+            <input id="cfgAutor" type="text" value="" placeholder="RDC" maxlength="5" spellcheck="false" />
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="cfgTitulo">Título da tela</label>
+          <input id="cfgTitulo" type="text" value="" placeholder="Consulta de ..." />
+        </div>
+        <div class="form-row inline three">
           <div>
             <label for="cfgAjCols">AJ colunas</label>
             <input id="cfgAjCols" type="number" min="40" max="108" value="108" />
@@ -42,27 +48,57 @@
             <label for="cfgAjRows">AJ linhas</label>
             <input id="cfgAjRows" type="number" min="10" max="28" value="28" />
           </div>
+          <div>
+            <label for="cfgTrava">Trava de execução</label>
+            <select id="cfgTrava">
+              <option value="%CSUTIRG001">%CSUTIRG001</option>
+              <option value="CCUTIRG001">CCUTIRG001</option>
+            </select>
+          </div>
         </div>
-        <p class="hint">O gerador monta interface + grid + Validate. A regra (RG) fica como chamada stub.</p>
       </section>
 
       <section class="grow">
-        <h2>Especificação</h2>
-        <textarea id="specIn" spellcheck="false" placeholder="Cole aqui: tipo, filtros, colunas e botões..."></textarea>
+        <div class="out-head">
+          <h2>Especificação</h2>
+          <button type="button" id="btnHelp" class="link">Formato</button>
+        </div>
+        <div id="help" class="help hidden">
+<pre>Filtros:                          (* no fim = obrigatório)
+Cliente + Display                 código + descrição (F7=LABEL^ROT opcional)
+Situação = multiseleção (A, B)    seleção múltipla (%CSUTIMM)
+Emissão Inicial -> Emissão Final  período De / Até
+Tipo = combo (Normal, Troca)      combo
+Ativo = sim/não                   radio Sim/Não
+Pedido : inteiro 8                texto | inteiro | data [tamanho]
+
+Colunas:                          Título [: tipo] [: largura]
+Valor Total ! Pedido : v2 : 12    "!" quebra linha no título
+                                  tipos: a n d v0 v2 v3 f2
+
+Botões:
+Consultar / Limpar                btnConsultar (sempre gerado)
+Imprimir                          demais → csw:botao + label 3XXX</pre>
+        </div>
+        <textarea id="specIn" spellcheck="false" placeholder="Filtros:&#10;...&#10;&#10;Colunas:&#10;...&#10;&#10;Botões:&#10;..."></textarea>
       </section>
     </aside>
 
     <section class="panel right">
       <div class="out-head">
-        <h2>Saída</h2>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="tela" role="tab">Tela</button>
+          <button type="button" class="tab" data-tab="rg" role="tab">Regras (RG)</button>
+        </div>
         <span id="outMeta" class="meta"></span>
       </div>
-      <textarea id="outMac" readonly spellcheck="false" placeholder="Clique em Gerar .txt..."></textarea>
+      <ul id="outAvisos" class="avisos hidden"></ul>
+      <textarea id="outMac" readonly spellcheck="false" placeholder="Clique em Gerar..."></textarea>
     </section>
   </main>
 
-  <script src="js/parser.js?v=4"></script>
-  <script src="js/generator.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/parser.js?v=5"></script>
+  <script src="js/generator.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>
