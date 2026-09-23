@@ -5,7 +5,6 @@
   const el = {
     nome: document.getElementById("cfgNome"),
     titulo: document.getElementById("cfgTitulo"),
-    mesAno: document.getElementById("cfgMesAno"),
     ajCols: document.getElementById("cfgAjCols"),
     ajRows: document.getElementById("cfgAjRows"),
     specIn: document.getElementById("specIn"),
@@ -25,11 +24,16 @@
     showToast._t = setTimeout(() => el.toast.classList.add("hidden"), 1400);
   }
 
+  function mesAnoAtual() {
+    const d = new Date();
+    return `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  }
+
   function readCfg() {
     return {
       nome: (el.nome.value || "ROTINA").trim().toUpperCase().replace(/\W/g, "") || "ROTINA",
       titulo: (el.titulo.value || "Consulta").trim(),
-      mesAno: (el.mesAno.value || "01/2026").trim(),
+      mesAno: mesAnoAtual(),
       ajCols: Math.min(108, Math.max(40, Number(el.ajCols.value) || 108)),
       ajRows: Math.min(28, Math.max(10, Number(el.ajRows.value) || 28)),
     };
@@ -87,7 +91,6 @@
     el.specIn.value = NS.EXAMPLE_SPEC;
     el.nome.value = "PRLPPV600";
     el.titulo.value = "Consulta de Pedidos";
-    el.mesAno.value = "03/2024";
     el.ajCols.value = "108";
     el.ajRows.value = "28";
     generate();
