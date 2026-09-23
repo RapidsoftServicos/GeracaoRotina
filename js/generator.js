@@ -276,7 +276,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       `\tdo FJAG^%CSW1UTI`,
       `\t;`,
       `\tset sc=$$ValidarDisplay^%CSW1GRID(CT,%PRG,1)`,
-      `\tif sc'=1 do ME^%CSUTICSP(sc) goto 1999`,
+      `\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) goto 1999`,
       `\t;`,
       `\tset sc=$$Movimentar^%CSW1GRID(CT,%PRG,1,,1)`,
       `\t;`,
@@ -381,7 +381,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
           L.push(`\t. do Set^%CSW1UTI(%PRG,"${f.dsId}","Selecionado(s)!")`);
           L.push(`\t;`);
           L.push(`\tset sc=$$VerRepresentante^CCFTRG001(CE,${f.varName},.REP)`);
-          L.push(`\tif sc'=1 do ME^%CSUTICSP(sc) quit $$$OK`);
+          L.push(`\tif $$$ISERR(sc) do ME^%CSUTICSP(sc) quit $$$OK`);
           L.push(`\t;`);
           L.push(`\tdo Set^%CSW1UTI(%PRG,"${f.dsId}",$piece(REP,Z,20))`);
           L.push(`\t;`);
