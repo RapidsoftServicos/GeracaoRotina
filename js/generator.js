@@ -371,7 +371,7 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     );
     model.columns.forEach((col, i) => {
       const alin = /^(n|v\d?|f\d)$/.test(col.tipo) ? " Alin=D;" : "";
-      L.push(`\tset TABGRID(1,${i + 1})="; csw:gridCols:cod=1; Tipo=${col.tipo};${alin}\tCsw=${col.width}^${col.name};"`);
+      L.push(`\tset TABGRID(1,${i + 1})="; csw:gridCols:cod=1; Tipo=${col.tipo};${alin}\tCsw=${col.width}^${col.name}^${i + 1};"`);
     });
     L.push(
       "\t;",

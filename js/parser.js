@@ -210,25 +210,9 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     };
   }
 
-  function guessColType(name) {
-    const n = name.toLowerCase();
-    if (/perc|valor|total|bruto|l[ií]quido|comiss[aã]o|pre[cç]o|verba/.test(n)) return "v2";
-    if (/qtde|quantidade|peso|pe[cç]as|saldo/.test(n)) return "v3";
-    if (/emiss[aã]o|previs[aã]o|^data|vencimento/.test(n)) return "d";
-    if (/^dias$|^c[oó]d(igo)?\b|^seq/.test(n)) return "n";
-    return "a";
-  }
-
-  function guessColWidth(name, tipo) {
-    if (tipo === "d") return 8;
-    if (/^v\d$/.test(tipo)) return Math.min(14, Math.max(9, Math.ceil(name.length * 0.6)));
-    if (tipo === "n") return 6;
-    const len = name.length;
-    if (len <= 8) return 10;
-    if (len <= 14) return 14;
-    if (len <= 22) return 20;
-    return 30;
-  }
+  // Coluna sem tipo/largura na especificação
+  const COL_TIPO_PADRAO = "a";
+  const COL_LARGURA_PADRAO = 6;
 
   // "Valor Total : v2 : 12" | "Valor Total : v2" | "Valor Total : 12" | "Valor Total"
   function parseColumn(raw, idx) {
@@ -240,8 +224,8 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       if (/^\d+$/.test(p)) width = Number(p);
       else if (/^(a|n|d|v\d?|f\d)$/i.test(p)) tipo = p.toLowerCase();
     }
-    tipo = tipo || guessColType(name);
-    width = width || guessColWidth(name, tipo);
+    tipo = tipo || COL_TIPO_PADRAO;
+    width = width || COL_LARGURA_PADRAO;
     return { name, tipo, width, index: idx + 1, param: camel(name.replace(/!/g, " ")) };
   }
 

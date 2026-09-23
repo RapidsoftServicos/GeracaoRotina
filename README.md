@@ -23,7 +23,7 @@ Tipo = combo (Normal, Troca)      combo
 Ativo = sim/não                   radio Sim/Não
 Pedido : inteiro 8                texto | inteiro | data [tamanho]
 
-Colunas:                          Título [: tipo] [: largura]
+Colunas:                          Título [: tipo] [: largura]  (padrão: a, 6)
 Valor Total ! Pedido : v2 : 12    "!" quebra linha no título; tipos a n d v0 v2 v3 f2
 
 Botões:
@@ -52,7 +52,7 @@ A tela exibe **avisos** de padrão (título com `%` ou começando com verbo, com
 ### Limitações
 
 - A leitura do global de negócio fica como `TODO` em `GerarGlobalTrabalho` e nas `ObterDescricao*`.
-- Larguras e tipos de coluna são estimados — ajuste na especificação (`: tipo : largura`).
+- Coluna sem tipo/largura sai `Tipo=a`, `Csw=6` — informe `: tipo : largura` quando precisar.
 
 ## Estrutura
 
