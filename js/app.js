@@ -5,11 +5,9 @@
   const $ = (id) => document.getElementById(id);
   const el = {
     nome: $("cfgNome"),
-    autor: $("cfgAutor"),
     titulo: $("cfgTitulo"),
     ajCols: $("cfgAjCols"),
     ajRows: $("cfgAjRows"),
-    trava: $("cfgTrava"),
     specIn: $("specIn"),
     outMac: $("outMac"),
     outMeta: $("outMeta"),
@@ -35,12 +33,12 @@
   function readCfg() {
     return {
       nome: (el.nome.value || "").trim().toUpperCase().replace(/[^%A-Z0-9]/g, ""),
-      autor: (el.autor.value || "").trim().toUpperCase(),
+      autor: "",
       titulo: (el.titulo.value || "Consulta").trim(),
       mesAno: mesAnoAtual(),
       ajCols: Math.min(108, Math.max(40, Number(el.ajCols.value) || 108)),
       ajRows: Math.min(28, Math.max(10, Number(el.ajRows.value) || 28)),
-      trava: el.trava.value,
+      trava: "%CSUTIRG001",
     };
   }
 

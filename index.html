@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Geração de Rotina CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=6" />
+  <link rel="stylesheet" href="css/styles.css?v=8" />
 </head>
 <body>
   <header class="topbar">
@@ -33,26 +33,15 @@
             <input id="cfgAjRows" type="number" min="10" max="28" value="28" aria-label="AJ linhas" />
           </div>
         </div>
-        <div class="form-row inline three">
+        <div class="form-row inline cfg last">
           <div>
             <label for="cfgNome">Código da rotina</label>
             <input id="cfgNome" type="text" value="" placeholder="CCXX600" spellcheck="false" />
           </div>
           <div>
-            <label for="cfgAutor">Sigla do autor</label>
-            <input id="cfgAutor" type="text" value="" placeholder="RDC" maxlength="5" spellcheck="false" />
+            <label for="cfgTitulo">Título da tela</label>
+            <input id="cfgTitulo" type="text" value="" placeholder="Consulta de ..." />
           </div>
-          <div>
-            <label for="cfgTrava">Trava de execução</label>
-            <select id="cfgTrava">
-              <option value="%CSUTIRG001">%CSUTIRG001</option>
-              <option value="CCUTIRG001">CCUTIRG001</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row last">
-          <label for="cfgTitulo">Título da tela</label>
-          <input id="cfgTitulo" type="text" value="" placeholder="Consulta de ..." />
         </div>
       </section>
 
@@ -95,8 +84,8 @@ Imprimir                          demais → csw:botao + label 3XXX</pre>
     </section>
   </main>
 
-  <script src="js/parser.js?v=6"></script>
-  <script src="js/generator.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/parser.js?v=8"></script>
+  <script src="js/generator.js?v=8"></script>
+  <script src="js/app.js?v=8"></script>
 </body>
 </html>
