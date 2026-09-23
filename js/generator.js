@@ -88,8 +88,9 @@ window.GeracaoRotina = window.GeracaoRotina || {};
       }
       if (f.kind === "display") {
         it.dsId = `ds${it.labelNum}`;
-        it.dsCol = COL_CAMPO + it.tam + 4;
-        it.dsTam = Math.max(10, Math.min(40, colBtn - 2 - it.dsCol));
+        // ~2 colunas de folga entre o fim do campo e o display
+        it.dsCol = COL_CAMPO + it.tam + 2;
+        it.dsTam = Math.max(10, Math.min(30, colBtn - 2 - it.dsCol));
       }
       it.lastLabel = it.labelNumAte || it.labelNum;
       lin += 1;
@@ -699,6 +700,11 @@ window.GeracaoRotina = window.GeracaoRotina || {};
     if (lay.blocos > 36) out.push(`${lay.blocos} campos de filtro — avalie dividir em abas (interface-abas).`);
     if (lay.grid.altura < 5) out.push(`Grid com altura ${lay.grid.altura} — muitos filtros para ${cfg.ajRows} linhas.`);
     if (!model.columns.length) out.push("Nenhuma coluna informada — o grid sai vazio.");
+    const largGrid = model.columns.reduce((s, c) => s + c.width, 0);
+    if (largGrid > lay.grid.colFim)
+      out.push(
+        `Colunas somam ${largGrid} de largura, mas o grid tem ${lay.grid.colFim} — as últimas ficam cortadas. Reduza larguras (": tipo : largura") ou colunas.`
+      );
     if (!/^[A-Z%][A-Z0-9]*$/.test(cfg.nome)) out.push("Nome da rotina deve ser só letras maiúsculas e números.");
     return out;
   }
